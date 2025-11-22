@@ -1,6 +1,66 @@
 "use client";
 
+import { useState } from "react";
+import axios from "axios";
+
 export default function RegistrationPage() {
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [repeatPassword, setRepeatPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [errors, setErrors] = useState<string[] | null>(null);
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    setErrors(null);
+
+    if (!firstName || !lastName || !email || !password || !repeatPassword) {
+      setErrors(["All fields are required"]);
+      return;
+    }
+
+    if (password !== repeatPassword) {
+      setErrors(["Passwords do not match"]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await axios.post(
+        `${apiBase}/api/signup`,
+        { firstName, lastName, email, password },
+        { withCredentials: true }
+      );
+
+      const data = res.data;
+      if (data?.success) {
+        setMessage(data.message || "Registered successfully");
+        setFirstName("");
+        setLastName("");
+        setEmail("");
+        setPassword("");
+        setRepeatPassword("");
+      } else {
+        setErrors(data?.errors || [data?.message || "Registration failed"]);
+      }
+    } catch (err: any) {
+      if (err?.response?.data) {
+        const d = err.response.data;
+        setErrors(d?.errors || [d?.message || "Registration failed"]);
+      } else {
+        setErrors([err?.message || "Network error"]);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <section className="_social_registration_wrapper _layout_main_wrapper">
       <div className="_shape_one">
@@ -48,27 +108,78 @@ export default function RegistrationPage() {
                 </button>
                 <div className="_social_registration_content_bottom_txt _mar_b40"> <span>Or</span>
                 </div>
-                <form className="_social_registration_form">
+                <form className="_social_registration_form" onSubmit={handleSubmit}>
                   <div className="row">
+                    <div className="col-xl-6 col-lg-6 col-md-12 col-sm-12">
+                      <div className="_social_registration_form_input _mar_b14">
+                        <label className="_social_registration_label _mar_b8">First Name</label>
+                        <input
+                          type="text"
+                          className="form-control _social_registration_input"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="col-xl-6 col-lg-6 col-md-12 col-sm-12">
+                      <div className="_social_registration_form_input _mar_b14">
+                        <label className="_social_registration_label _mar_b8">Last Name</label>
+                        <input
+                          type="text"
+                          className="form-control _social_registration_input"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                        />
+                      </div>
+                    </div>
                     <div className="col-xl-12 col-lg-12 col-md-12 col-sm-12">
                       <div className="_social_registration_form_input _mar_b14">
                         <label className="_social_registration_label _mar_b8">Email</label>
-                        <input type="email" className="form-control _social_registration_input" />
+                        <input
+                          type="email"
+                          className="form-control _social_registration_input"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                        />
                       </div>
                     </div>
                     <div className="col-xl-12 col-lg-12 col-md-12 col-sm-12">
                       <div className="_social_registration_form_input _mar_b14">
                         <label className="_social_registration_label _mar_b8">Password</label>
-                        <input type="password" className="form-control _social_registration_input" />
+                        <input
+                          type="password"
+                          className="form-control _social_registration_input"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                        />
                       </div>
                     </div>
                     <div className="col-xl-12 col-lg-12 col-md-12 col-sm-12">
                       <div className="_social_registration_form_input _mar_b14">
                         <label className="_social_registration_label _mar_b8">Repeat Password</label>
-                        <input type="password" className="form-control _social_registration_input" />
+                        <input
+                          type="password"
+                          className="form-control _social_registration_input"
+                          value={repeatPassword}
+                          onChange={(e) => setRepeatPassword(e.target.value)}
+                        />
                       </div>
                     </div>
                   </div>
+                  {message && (
+                    <div className="_mar_b16">
+                      <div className="alert alert-success">{message}</div>
+                    </div>
+                  )}
+                  {errors && (
+                    <div className="_mar_b16">
+                      {errors.map((err, i) => (
+                        <div key={i} className="alert alert-danger">
+                          {err}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="row">
                     <div className="col-lg-12 col-xl-12 col-md-12 col-sm-12">
                       <div className="form-check _social_registration_form_check">
@@ -80,7 +191,9 @@ export default function RegistrationPage() {
                   <div className="row">
                     <div className="col-lg-12 col-md-12 col-xl-12 col-sm-12">
                       <div className="_social_registration_form_btn _mar_t40 _mar_b60">
-                        <button type="button" className="_social_registration_form_btn_link _btn1">Login now</button>
+                        <button type="submit" className="_social_registration_form_btn_link _btn1" disabled={loading}>
+                          {loading ? "Registering..." : "Register"}
+                        </button>
                       </div>
                     </div>
                   </div>

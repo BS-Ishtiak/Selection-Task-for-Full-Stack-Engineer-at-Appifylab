@@ -1,71 +1,86 @@
-import Image from "next/image";
+"use client";
 
 export default function Login() {
   return (
-    <section className="relative min-h-screen flex items-center bg-white font-sans">
-      {/* Decorative shapes */}
-      <div className="absolute left-0 top-8 pointer-events-none">
-        <Image src="/assets/images/shape1.svg" alt="shape1" width={220} height={220} />
+    <section className="_social_login_wrapper _layout_main_wrapper">
+      <div className="_shape_one">
+        <img src="/assets/images/shape1.svg" alt="" className="_shape_img" />
+        <img src="/assets/images/dark_shape.svg" alt="" className="_dark_shape" />
       </div>
-      <div className="absolute right-0 top-24 pointer-events-none">
-        <Image src="/assets/images/shape2.svg" alt="shape2" width={200} height={200} />
+      <div className="_shape_two">
+        <img src="/assets/images/shape2.svg" alt="" className="_shape_img" />
+        <img src="/assets/images/dark_shape1.svg" alt="" className="_shape_img _dark_shape _dark_shape_opacity" />
       </div>
-      <div className="absolute left-8 bottom-10 pointer-events-none">
-        <Image src="/assets/images/shape3.svg" alt="shape3" width={180} height={180} />
+      <div className="_shape_three">
+        <img src="/assets/images/shape3.svg" alt="" className="_shape_img" />
+        <img src="/assets/images/dark_shape2.svg" alt="" className="_shape_img _dark_shape _dark_shape_opacity" />
       </div>
-
-      <div className="w-full">
-        <div className="max-w-7xl mx-auto px-6 py-20">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
-            {/* Left image area */}
-            <div className="lg:col-span-8 order-2 lg:order-1 flex justify-center lg:justify-start">
-              <div className="relative w-full max-w-lg">
-                <Image src="/assets/images/login.png" alt="login" width={720} height={560} />
+      <div className="_social_login_wrap">
+        <div className="container">
+          <div className="row align-items-center">
+            <div className="col-xl-8 col-lg-8 col-md-12 col-sm-12">
+              <div className="_social_login_left">
+                <div className="_social_login_left_image">
+                  <img src="/assets/images/login.png" alt="Image" className="_left_img" />
+                </div>
               </div>
             </div>
-
-            {/* Right form area */}
-            <div className="lg:col-span-4 order-1 lg:order-2">
-              <div className="bg-white shadow-lg rounded-xl p-8 sm:p-10 max-w-md mx-auto">
-                <div className="flex items-center mb-6">
-                  <Image src="/assets/images/logo.svg" alt="Logo" width={56} height={40} />
+            <div className="col-xl-4 col-lg-4 col-md-12 col-sm-12">
+              <div className="_social_login_content">
+                <div className="_social_login_left_logo _mar_b28">
+                  <img src="/assets/images/logo.svg" alt="Image" className="_left_logo" />
                 </div>
-                <p className="text-sm text-gray-500 mb-2">Welcome back</p>
-                <h4 className="text-2xl font-semibold text-gray-900 mb-6">Login to your account</h4>
-
-                <button className="w-full flex items-center justify-center gap-3 border border-gray-200 rounded-lg py-3 mb-4 hover:shadow-sm">
-                  <Image src="/assets/images/google.svg" alt="google" width={20} height={20} />
-                  <span className="text-sm">Or sign-in with google</span>
+                <p className="_social_login_content_para _mar_b8">Welcome back</p>
+                <h4 className="_social_login_content_title _titl4 _mar_b50">Login to your account</h4>
+                <button type="button" className="_social_login_content_btn _mar_b40">
+                  <img src="/assets/images/google.svg" alt="Image" className="_google_img" /> <span>Or sign-in with google</span>
                 </button>
-
-                <div className="text-center text-gray-400 mb-4">Or</div>
-
-                <form>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-2">Email</label>
-                      <input type="email" className="w-full border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                <div className="_social_login_content_bottom_txt _mar_b40"> <span>Or</span>
+                </div>
+                <form className="_social_login_form">
+                  <div className="row">
+                    <div className="col-xl-12 col-lg-12 col-md-12 col-sm-12">
+                      <div className="_social_login_form_input _mar_b14">
+                        <label className="_social_login_label _mar_b8">Email</label>
+                        <input type="email" className="form-control _social_login_input" />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm text-gray-700 mb-2">Password</label>
-                      <input type="password" className="w-full border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                    <div className="col-xl-12 col-lg-12 col-md-12 col-sm-12">
+                      <div className="_social_login_form_input _mar_b14">
+                        <label className="_social_login_label _mar_b8">Password</label>
+                        <input type="password" className="form-control _social_login_input" />
+                      </div>
                     </div>
-
-                    <div className="flex items-center justify-between">
-                      <label className="flex items-center text-sm">
-                        <input type="checkbox" defaultChecked className="h-4 w-4 text-indigo-600 border-gray-300 rounded mr-2" />
-                        Remember me
-                      </label>
-                      <a href="#" className="text-sm text-indigo-600">Forgot password?</a>
+                  </div>
+                  <div className="row">
+                    <div className="col-lg-6 col-xl-6 col-md-6 col-sm-12">
+                      <div className="form-check _social_login_form_check">
+                        <input className="form-check-input _social_login_form_check_input" type="radio" name="flexRadioDefault" id="flexRadioDefault2" defaultChecked />
+                        <label className="form-check-label _social_login_form_check_label" htmlFor="flexRadioDefault2">Remember me</label>
+                      </div>
                     </div>
-
-                    <div>
-                      <button type="submit" className="w-full bg-indigo-600 text-white rounded-lg py-3 hover:bg-indigo-700">Login now</button>
+                    <div className="col-lg-6 col-xl-6 col-md-6 col-sm-12">
+                      <div className="_social_login_form_left">
+                        <p className="_social_login_form_left_para">Forgot password?</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="row">
+                    <div className="col-lg-12 col-md-12 col-xl-12 col-sm-12">
+                      <div className="_social_login_form_btn _mar_t40 _mar_b60">
+                        <button type="button" className="_social_login_form_btn_link _btn1">Login now</button>
+                      </div>
                     </div>
                   </div>
                 </form>
-
-                <p className="text-sm text-gray-500 text-center mt-6">Dont have an account? <a href="#" className="text-indigo-600">Create New Account</a></p>
+                <div className="row">
+                  <div className="col-xl-12 col-lg-12 col-md-12 col-sm-12">
+                    <div className="_social_login_bottom_txt">
+                      <p className="_social_login_bottom_txt_para">Dont have an account? <a href="#0">Create New Account</a>
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

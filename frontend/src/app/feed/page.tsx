@@ -80,7 +80,7 @@ export default function FeedPage() {
                   <StoryCarousel />
                   <PostComposer onCreated={handleNewPost} />
                   {posts.map((pt) => (
-                    <PostCard key={pt.id} author={pt.author} time={pt.time} title={pt.title} image={pt.image} />
+                    <PostCard key={pt.id} postId={pt.id} author={pt.author} time={pt.time} title={pt.title} image={pt.image} />
                   ))}
                 </main>
               </div>

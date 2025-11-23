@@ -62,14 +62,21 @@ export const AuthProvider = ({ children }: any) => {
     router.push("/login");
   };
 
-  // Try to refresh access token using refresh token
+  // Try to refresh access token using refresh token (supports cookie-based or body-based)
   const refreshAccessToken = async (): Promise<boolean> => {
     try {
       const storedRefresh = refreshToken || localStorage.getItem("refreshToken");
       try { console.debug("Auth: refreshAccessToken - storedRefresh present=", !!storedRefresh); } catch (e) {}
-      if (!storedRefresh) return false;
 
-      const resp = await api.post("/api/auth/token", { refreshToken: storedRefresh });
+      let resp;
+      if (storedRefresh) {
+        // If refresh token is available in localStorage (legacy), send it in body
+        resp = await api.post("/api/auth/token", { refreshToken: storedRefresh });
+      } else {
+        // Otherwise assume refresh token is httpOnly cookie; call endpoint with credentials
+        resp = await api.post("/api/auth/token", {});
+      }
+
       const payload = resp.data;
       try { console.debug("Auth: refreshAccessToken - token endpoint response", payload); } catch (e) {}
       if (payload?.success && payload?.data?.accessToken) {
@@ -142,41 +149,8 @@ export const AuthProvider = ({ children }: any) => {
     }
   }, [user]);
 
-  // Register a response interceptor to try token refresh on 401, once per request
-  useEffect(() => {
-    const interceptorId = api.interceptors.response.use(
-      (response) => response,
-      async (error) => {
-        const originalRequest = error.config;
-        const status = error?.response?.status;
-        try { console.debug("Auth: interceptor - status", status, "url", originalRequest?.url); } catch (e) {}
-
-        if (status === 401 && !originalRequest?._retry) {
-          try { console.debug("Auth: interceptor - attempting refresh for", originalRequest?.url); } catch (e) {}
-          originalRequest._retry = true;
-          const ok = await refreshAccessToken();
-          try { console.debug("Auth: interceptor - refresh result", ok); } catch (e) {}
-          if (ok) {
-            // set Authorization header for the retried request
-            const newToken = localStorage.getItem("accessToken");
-            if (newToken) {
-              originalRequest.headers = originalRequest.headers || {};
-              originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
-            }
-            return api(originalRequest);
-          }
-        }
-        // If refresh failed or not retriable, perform logout flow
-        try { console.debug("Auth: interceptor - logout due to failed refresh or non-retriable status", status); } catch (e) {}
-        logout();
-        return Promise.reject(error);
-      }
-    );
-
-    return () => {
-      try { api.interceptors.response.eject(interceptorId); } catch (e) {}
-    };
-  }, [refreshToken]);
+  // NOTE: axios response interceptor and refresh queue are implemented in `lib/api.ts`.
+  // AuthContext retains `refreshAccessToken` for initialization and explicit calls.
 
   return (
     <AuthContext.Provider value={{ user, isAuthenticated: !!user, isAuthReady, login, logout, refreshAccessToken }}>

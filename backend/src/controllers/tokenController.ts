@@ -6,7 +6,15 @@ export default function makeTokenController(deps: { refreshStore: Set<string>; s
 
   return async function token(req: Request, res: Response) {
     try {
-      const { refreshToken } = req.body;
+      // Support both: refresh token in request body OR in cookie header (httpOnly cookie)
+      let refreshToken = req.body?.refreshToken;
+      if (!refreshToken && req.headers?.cookie) {
+        // parse simple cookie string: 'a=1; b=2'
+        const cookies = req.headers.cookie.split(';').map(c => c.trim());
+        const found = cookies.find(c => c.startsWith('refreshToken='));
+        if (found) refreshToken = decodeURIComponent(found.split('=')[1] || '');
+      }
+
       if (!refreshToken) return res.status(401).json({ success: false, data: null, message: null, errors: ['Refresh token required'] });
 
       // Check the token exists in the server-side store (simple in-memory store)

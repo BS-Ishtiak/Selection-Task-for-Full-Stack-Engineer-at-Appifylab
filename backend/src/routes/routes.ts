@@ -48,6 +48,14 @@ export default function createRoutes({ pool, refreshStore, signAccessToken, sign
     console.warn('Could not mount likes router:', e?.message || e);
   }
 
+  // Mount comments routes (create/list comments and replies)
+  try {
+    const createCommentsRouter = require('../controllers/commentsController').default;
+    router.use('/', createCommentsRouter({ pool, authenticateToken } as any));
+  } catch (e: any) {
+    console.warn('Could not mount comments router:', e?.message || e);
+  }
+
   return router;
 }
 

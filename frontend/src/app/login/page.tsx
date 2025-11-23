@@ -22,7 +22,7 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const res = await axios.post(`${apiBase}/api/login`, { email, password }, { withCredentials: true });
+      const res = await axios.post(`${apiBase}/api/auth/login`, { email, password }, { withCredentials: true });
       const data = res.data;
       if (data?.success) {
         setMessage(data.message || "Logged in");

@@ -33,7 +33,7 @@ export default function RegistrationPage() {
     setLoading(true);
     try {
       const res = await axios.post(
-        `${apiBase}/api/signup`,
+        `${apiBase}/api/auth/signup`,
         { firstName, lastName, email, password },
         { withCredentials: true }
       );

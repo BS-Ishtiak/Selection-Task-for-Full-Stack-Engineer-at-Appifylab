@@ -6,7 +6,7 @@ import { useAuth } from "../context/AuthContext";
 export default function Header() {
   const [notifyOpen, setNotifyOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const getDisplayName = () => {
     if (!user) return "";
@@ -21,6 +21,7 @@ export default function Header() {
   };
   const displayName = getDisplayName();
   const displayEmail = user?.email || "";
+  const avatarSrc = user?.avatar || user?.avatarUrl || "/assets/images/profile.png";
 
   return (
     <header>
@@ -81,7 +82,7 @@ export default function Header() {
             </ul>
             <div className="_header_nav_profile" style={{ position: "relative" }}>
               <div className="_header_nav_profile_image">
-                <Avatar src="/assets/images/profile.png" alt="profile" className="_nav_profile_img" />
+                <Avatar src={avatarSrc} alt="profile" className="_nav_profile_img" />
               </div>
               <div className="_header_nav_dropdown">
                 <p className="_header_nav_para">{displayName || ""}</p>
@@ -99,7 +100,7 @@ export default function Header() {
                 >
                   <div className="_profile_dropdown_user">
                     <div className="_profile_dropdown_user_img">
-                      <Avatar src="/assets/images/profile.png" alt="profile" className="_nav_profile_img_small" />
+                      <Avatar src={avatarSrc} alt="profile" className="_nav_profile_img_small" />
                     </div>
                     <div className="_profile_dropdown_user_info">
                       <h5 className="_profile_dropdown_name">{displayName || ""}</h5>
@@ -136,14 +137,14 @@ export default function Header() {
                       </a>
                     </li>
                     <li>
-                      <a href="/logout" className="_profile_dropdown_item _danger">
+                      <button type="button" onClick={() => { try { logout(); } catch (e) {} }} className="_profile_dropdown_item _danger" style={{ background: 'transparent', border: 'none', padding: 0, textAlign: 'left', width: '100%' }}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" className="_profile_dropdown_icon">
                           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="#C0392B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                           <path d="M16 17l5-5-5-5" stroke="#C0392B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                           <path d="M21 12H9" stroke="#C0392B" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                         </svg>
                         <span>Sign Out</span>
-                      </a>
+                      </button>
                     </li>
                   </ul>
                 </div>

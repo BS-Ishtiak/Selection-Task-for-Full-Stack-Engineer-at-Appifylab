@@ -1,7 +1,75 @@
 "use client";
-import React from "react";
+import React, { useState } from "react";
+import api from "../lib/api";
 
-export default function PostComposer() {
+type PostComposerProps = {
+  onCreated?: (post: any) => void;
+};
+
+export default function PostComposer({ onCreated }: PostComposerProps) {
+  const [text, setText] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [visibility, setVisibility] = useState("public");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [success, setSuccess] = useState<boolean | null>(null);
+
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files && e.target.files[0];
+    setImageFile(f || null);
+  };
+
+  const handleSubmit = async () => {
+    setMessage(null);
+    if (!text && !imageFile) {
+      setMessage("Please enter text or attach an image.");
+      return;
+    }
+    setLoading(true);
+    try {
+      let resp;
+      if (imageFile) {
+        const fd = new FormData();
+        fd.append("text", text);
+        fd.append("visibility", visibility);
+        fd.append("image", imageFile);
+        resp = await api.post("/api/posts", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      } else {
+        resp = await api.post("/api/posts", { text, visibility });
+      }
+
+      const payload = resp.data;
+      if (payload?.success) {
+        setMessage(payload.message || "Post created");
+        setSuccess(true);
+        const newPost = payload.data || null;
+        try {
+          if (onCreated && newPost) onCreated(newPost);
+        } catch (e) {}
+        setText("");
+        setImageFile(null);
+      } else {
+        setMessage(payload?.message || "Failed to create post");
+        setSuccess(false);
+      }
+    } catch (err: any) {
+      setMessage(err?.response?.data?.message || err?.message || "Network error");
+      setSuccess(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const imagePreview = imageFile ? URL.createObjectURL(imageFile) : null;
+
+  const displayImageUrl = (imgPath: string | undefined | null) => {
+    if (!imgPath) return null;
+    if (imgPath.startsWith("http")) return imgPath;
+    return apiBase.replace(/\/$/, "") + imgPath;
+  };
+
   return (
     <div className="_feed_inner_text_area  _b_radious6 _padd_b24 _padd_t24 _padd_r24 _padd_l24 _mar_b16">
       <div className="_feed_inner_text_area_box">
@@ -9,31 +77,34 @@ export default function PostComposer() {
           <img src="/assets/images/txt_img.png" alt="Image" className="_txt_img" />
         </div>
         <div className="form-floating _feed_inner_text_area_box_form ">
-          <textarea className="form-control _textarea" placeholder="Leave a comment here" id="floatingTextarea"></textarea>
+          <textarea className="form-control _textarea" placeholder="Leave a comment here" id="floatingTextarea" value={text} onChange={(e) => setText(e.target.value)}></textarea>
           <label className="_feed_textarea_label" htmlFor="floatingTextarea">Write something ...</label>
         </div>
       </div>
       <div className="_feed_inner_text_area_bottom">
         <div className="_feed_inner_text_area_item">
           <div className="_feed_inner_text_area_bottom_photo _feed_common">
-            <button type="button" className="_feed_inner_text_area_bottom_photo_link">
+            <label className="_feed_inner_text_area_bottom_photo_link" style={{ cursor: 'pointer' }}>
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileChange} />
               <span className="_feed_inner_text_area_bottom_photo_iamge _mar_img">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 20 20">
                   <path fill="#666" d="M13.916 0c3.109 0 5.18 2.429 5.18 5.914v8.17c0 3.486-2.072 5.916-5.18 5.916H5.999C2.89 20 .827 17.572.827 14.085v-8.17C.827 2.43 2.897 0 6 0h7.917zm0 1.504H5.999c-2.321 0-3.799 1.735-3.799 4.41v8.17c0 2.68 1.472 4.412 3.799 4.412h7.917c2.328 0 3.807-1.734 3.807-4.411v-8.17c0-2.678-1.478-4.411-3.807-4.411zm.65 8.68l.12.125 1.9 2.147a.803.803 0 01-.016 1.063.642.642 0 01-.894.058l-.076-.074-1.9-2.148a.806.806 0 00-1.205-.028l-.074.087-2.04 2.717c-.722.963-2.02 1.066-2.86.26l-.111-.116-.814-.91a.562.562 0 00-.793-.07l-.075.073-1.4 1.617a.645.645 0 01-.97.029.805.805 0 01-.09-.977l.064-.086 1.4-1.617c.736-.852 1.95-.897 2.734-.137l.114.12.81.905a.587.587 0 00.861.033l.07-.078 2.04-2.718c.81-1.08 2.27-1.19 3.205-.275zM6.831 4.64c1.265 0 2.292 1.125 2.292 2.51 0 1.386-1.027 2.511-2.292 2.511S4.54 8.537 4.54 7.152c0-1.386 1.026-2.51 2.291-2.51zm0 1.504c-.507 0-.918.451-.918 1.007 0 .555.411 1.006.918 1.006.507 0 .919-.451.919-1.006 0-.556-.412-1.007-.919-1.007z" />
                 </svg>
               </span>
               Photo
-            </button>
+            </label>
+            {imagePreview && (
+              <div style={{ marginTop: 8 }}>
+                <img src={imagePreview} alt="preview" style={{ maxWidth: 160, maxHeight: 120, borderRadius: 6 }} />
+              </div>
+            )}
           </div>
           <div className="_feed_inner_text_area_bottom_video _feed_common">
-            <button type="button" className="_feed_inner_text_area_bottom_photo_link">
-              <span className="_feed_inner_text_area_bottom_photo_iamge _mar_img">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="24" fill="none" viewBox="0 0 22 24">
-                  <path fill="#666" d="M11.485 4.5c2.213 0 3.753 1.534 3.917 3.784l2.418-1.082c1.047-.468 2.188.327 2.271 1.533l.005.141v6.64c0 1.237-1.103 2.093-2.155 1.72l-.121-.047-2.418-1.083c-.164 2.25-1.708 3.785-3.917 3.785H5.76c-2.343 0-3.932-1.72-3.932-4.188V8.688c0-2.47 1.589-4.188 3.932-4.188h5.726zm0 1.5H5.76C4.169 6 3.197 7.05 3.197 8.688v7.015c0 1.636.972 2.688 2.562 2.688h5.726c1.586 0 2.562-1.054 2.562-2.688v-.686-6.329c0-1.636-.973-2.688-2.562-2.688zM18.4 8.57l-.062.02-2.921 1.306v4.596l2.921 1.307c.165.073.343-.036.38-.215l.008-.07V8.876c0-.195-.16-.334-.326-.305z" />
-                </svg>
-              </span>
-              Video
-            </button>
+            <select value={visibility} onChange={(e) => setVisibility(e.target.value)} className="form-select" style={{ display: 'inline-block', width: 'auto' }}>
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+              <option value="friends">Friends</option>
+            </select>
           </div>
           <div className="_feed_inner_text_area_bottom_event _feed_common">
             <button type="button" className="_feed_inner_text_area_bottom_photo_link">
@@ -57,14 +128,21 @@ export default function PostComposer() {
           </div>
         </div>
         <div className="_feed_inner_text_area_btn">
-            <button type="button" className="_feed_inner_text_area_btn_link">
+            <button type="button" className="_feed_inner_text_area_btn_link" onClick={handleSubmit} disabled={loading}>
               <svg className="_mar_img" xmlns="http://www.w3.org/2000/svg" width="14" height="13" fill="none" viewBox="0 0 14 13">
                 <path fill="#fff" fillRule="evenodd" d="M6.37 7.879l2.438 3.955a.335.335 0 00.34.162c.068-.01.23-.05.289-.247l3.049-10.297a.348.348 0 00-.09-.35.341.341 0 00-.34-.088L1.75 4.03a.34.34 0 00-.247.289.343.343 0 00.16.347L5.666 7.17 9.2 3.597a.5.5 0 01.712.703L6.37 7.88zM9.097 13c-.464 0-.89-.236-1.14-.641L5.372 8.165l-4.237-2.65a1.336 1.336 0 01-.622-1.331c.074-.536.441-.96.957-1.112L11.774.054a1.347 1.347 0 011.67 1.682l-3.05 10.296A1.332 1.332 0 019.098 13z" clipRule="evenodd" />
               </svg>
-              <span>Post</span>
+              <span>{loading ? 'Posting...' : 'Post'}</span>
             </button>
         </div>
       </div>
+
+      {message && (
+        <div style={{ marginTop: 12 }}>
+          <div className={`alert ${success ? 'alert-success' : 'alert-info'}`}>{message}</div>
+        </div>
+      )}
+    
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import dotenv from "dotenv";
 import { Pool } from "pg";
 import jwt from "jsonwebtoken";
@@ -11,6 +12,9 @@ dotenv.config();
 const app = express();
 app.use(jsonMiddleware);
 app.use(corsMiddleware);
+
+// Serve uploaded files from /uploads
+app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
 
 // ---- PostgreSQL main connection ----
 const pool = new Pool({

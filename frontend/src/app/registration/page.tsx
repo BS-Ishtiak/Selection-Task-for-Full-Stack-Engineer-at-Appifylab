@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import axios from "axios";
+import api from "../../lib/api";
 
 export default function RegistrationPage() {
   const [firstName, setFirstName] = useState("");
@@ -32,12 +32,7 @@ export default function RegistrationPage() {
 
     setLoading(true);
     try {
-      const res = await axios.post(
-        `${apiBase}/api/auth/signup`,
-        { firstName, lastName, email, password },
-        { withCredentials: true }
-      );
-
+      const res = await api.post(`/api/auth/signup`, { firstName, lastName, email, password });
       const data = res.data;
       if (data?.success) {
         setMessage(data.message || "Registered successfully");

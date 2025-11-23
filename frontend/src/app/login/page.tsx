@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import axios from "axios";
+import { useRouter } from "next/navigation";
+import api from "../../lib/api";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -9,6 +10,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[] | null>(null);
+  const router = useRouter();
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -22,13 +24,17 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const res = await axios.post(`${apiBase}/api/auth/login`, { email, password }, { withCredentials: true });
+      const res = await api.post(`/api/auth/login`, { email, password });
       const data = res.data;
       if (data?.success) {
         setMessage(data.message || "Logged in");
         // Save tokens (you can change to cookies if desired)
-        if (data.accessToken) localStorage.setItem("accessToken", data.accessToken);
-        if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
+        if (typeof window !== 'undefined') {
+          if (data.accessToken) localStorage.setItem("accessToken", data.accessToken);
+          if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
+        }
+        // Redirect to feed
+        router.push('/feed');
       } else {
         setErrors(data?.errors || [data?.message || "Login failed"]);
       }

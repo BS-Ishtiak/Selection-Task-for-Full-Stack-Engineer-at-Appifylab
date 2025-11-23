@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "../../lib/api";
+import { useAuth } from "../../context/AuthContext";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -11,6 +12,7 @@ export default function Login() {
   const [message, setMessage] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[] | null>(null);
   const router = useRouter();
+  const { login } = useAuth();
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -25,18 +27,17 @@ export default function Login() {
     setLoading(true);
     try {
       const res = await api.post(`/api/auth/login`, { email, password });
-      const data = res.data;
-      if (data?.success) {
-        setMessage(data.message || "Logged in");
-        // Save tokens (you can change to cookies if desired)
-        if (typeof window !== 'undefined') {
-          if (data.accessToken) localStorage.setItem("accessToken", data.accessToken);
-          if (data.refreshToken) localStorage.setItem("refreshToken", data.refreshToken);
-        }
-        // Redirect to feed
+      const payload = res.data;
+      if (payload?.success) {
+        setMessage(payload.message || "Logged in");
+        const token = payload.accessToken;
+        const rToken = payload.refreshToken;
+        const user = payload.data || null;
+        // update auth context (stores token, refresh token and user)
+        try { login(token, user, rToken); } catch (e) {}
         router.push('/feed');
       } else {
-        setErrors(data?.errors || [data?.message || "Login failed"]);
+        setErrors(payload?.errors || [payload?.message || "Login failed"]);
       }
     } catch (err: any) {
       if (err?.response?.data) {

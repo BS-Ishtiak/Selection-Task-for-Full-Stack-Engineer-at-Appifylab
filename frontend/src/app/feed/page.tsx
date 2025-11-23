@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect } from "react";
+import React from "react";
 import Header from "../../components/Header";
 import LeftSidebar from "../../components/LeftSidebar";
 import RightSidebar from "../../components/RightSidebar";
@@ -9,24 +9,14 @@ import PostCard from "../../components/PostCard";
 import MobileBottomNav from "../../components/MobileBottomNav";
 import ThemeToggle from "../../components/ThemeToggle";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import ProtectedRoute from "@/src/components/ProtectedRoute";
 
 export default function FeedPage() {
   const [darkMode, setDarkMode] = useState(false);
-  const router = useRouter();
-
-  useEffect(() => {
-    // Client-side guard: if no accessToken in localStorage, redirect to login
-    if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        router.replace('/login');
-      }
-    }
-  }, [router]);
 
   return (
-    <div className={`_layout _layout_main_wrapper${darkMode ? " _dark_wrapper" : ""}`}>
+    <ProtectedRoute>
+      <div className={`_layout _layout_main_wrapper${darkMode ? " _dark_wrapper" : ""}`}>
       <ThemeToggle darkMode={darkMode} setDarkMode={setDarkMode} />
       <Header />
       <div className="_main_layout">
@@ -53,5 +43,6 @@ export default function FeedPage() {
       </div>
       <MobileBottomNav />
     </div>
+    </ProtectedRoute>
   );
 }

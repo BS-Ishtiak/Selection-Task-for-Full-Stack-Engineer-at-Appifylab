@@ -1,0 +1,190 @@
+"use client";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import api, { setAuthToken, clearAuthToken } from "../lib/api";
+
+type LoginArgs = {
+  accessToken: string;
+  refreshToken?: string;
+  userData?: any;
+};
+
+interface AuthContextType {
+  user: any | null;
+  isAuthenticated: boolean;
+  isAuthReady: boolean;
+  login: (accessToken: string, userData?: any, refreshToken?: string) => void;
+  logout: () => void;
+  refreshAccessToken: () => Promise<boolean>;
+}
+
+const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isAuthenticated: false,
+  isAuthReady: false,
+  login: () => {},
+  logout: () => {},
+  refreshAccessToken: async () => false,
+});
+
+export const AuthProvider = ({ children }: any) => {
+  const [user, setUser] = useState<any | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
+  const router = useRouter();
+
+  const login = (accessToken: string, userData?: any, rToken?: string) => {
+    try {
+      localStorage.setItem("accessToken", accessToken);
+      if (rToken) localStorage.setItem("refreshToken", rToken);
+    } catch (e) {}
+    // debug
+    try { console.debug("Auth: login - accessToken set, hasRefresh=", !!rToken); } catch (e) {}
+    try {
+      setAuthToken(accessToken);
+    } catch (e) {}
+    setUser(userData || { token: accessToken });
+    if (rToken) setRefreshToken(rToken);
+  };
+
+  const logout = () => {
+    try {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
+    } catch (e) {}
+    try {
+      clearAuthToken();
+    } catch (e) {}
+    setUser(null);
+    setRefreshToken(null);
+    // navigate to login
+    router.push("/login");
+  };
+
+  // Try to refresh access token using refresh token
+  const refreshAccessToken = async (): Promise<boolean> => {
+    try {
+      const storedRefresh = refreshToken || localStorage.getItem("refreshToken");
+      try { console.debug("Auth: refreshAccessToken - storedRefresh present=", !!storedRefresh); } catch (e) {}
+      if (!storedRefresh) return false;
+
+      const resp = await api.post("/api/auth/token", { refreshToken: storedRefresh });
+      const payload = resp.data;
+      try { console.debug("Auth: refreshAccessToken - token endpoint response", payload); } catch (e) {}
+      if (payload?.success && payload?.data?.accessToken) {
+        const newAccess = payload.data.accessToken;
+        try {
+          localStorage.setItem("accessToken", newAccess);
+        } catch (e) {}
+        try { setAuthToken(newAccess); } catch (e) {}
+        return true;
+      }
+      return false;
+    } catch (err) {
+      try { console.debug("Auth: refreshAccessToken - error", err); } catch (e) {}
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    // On mount try to restore auth: if accessToken exists set header and user;
+    // otherwise if refreshToken exists attempt to get a new access token.
+    let mounted = true;
+
+    (async () => {
+      try {
+        const storedUser = localStorage.getItem("user");
+        const storedAccess = localStorage.getItem("accessToken");
+        const storedRefresh = localStorage.getItem("refreshToken");
+
+        if (storedRefresh) setRefreshToken(storedRefresh);
+
+        if (storedAccess) {
+          try { setAuthToken(storedAccess); } catch (e) {}
+          if (mounted) {
+            if (storedUser) setUser(JSON.parse(storedUser));
+            else setUser({ token: storedAccess });
+          }
+        } else if (storedRefresh) {
+          // attempt to refresh
+          const ok = await refreshAccessToken();
+          if (ok && mounted) {
+            const newAccess = localStorage.getItem("accessToken");
+            if (newAccess) {
+              try {
+                setAuthToken(newAccess);
+              } catch (e) {}
+              if (storedUser) setUser(JSON.parse(storedUser));
+              else setUser({ token: newAccess });
+            }
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+      // mark initialization complete regardless of success/failure
+      try { setIsAuthReady(true); } catch (e) {}
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Persist user in localStorage
+  useEffect(() => {
+    try {
+      if (user) localStorage.setItem("user", JSON.stringify(user));
+      else localStorage.removeItem("user");
+    } catch (e) {
+      // ignore
+    }
+  }, [user]);
+
+  // Register a response interceptor to try token refresh on 401, once per request
+  useEffect(() => {
+    const interceptorId = api.interceptors.response.use(
+      (response) => response,
+      async (error) => {
+        const originalRequest = error.config;
+        const status = error?.response?.status;
+        try { console.debug("Auth: interceptor - status", status, "url", originalRequest?.url); } catch (e) {}
+
+        if (status === 401 && !originalRequest?._retry) {
+          try { console.debug("Auth: interceptor - attempting refresh for", originalRequest?.url); } catch (e) {}
+          originalRequest._retry = true;
+          const ok = await refreshAccessToken();
+          try { console.debug("Auth: interceptor - refresh result", ok); } catch (e) {}
+          if (ok) {
+            // set Authorization header for the retried request
+            const newToken = localStorage.getItem("accessToken");
+            if (newToken) {
+              originalRequest.headers = originalRequest.headers || {};
+              originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+            }
+            return api(originalRequest);
+          }
+        }
+        // If refresh failed or not retriable, perform logout flow
+        try { console.debug("Auth: interceptor - logout due to failed refresh or non-retriable status", status); } catch (e) {}
+        logout();
+        return Promise.reject(error);
+      }
+    );
+
+    return () => {
+      try { api.interceptors.response.eject(interceptorId); } catch (e) {}
+    };
+  }, [refreshToken]);
+
+  return (
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, isAuthReady, login, logout, refreshAccessToken }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => useContext(AuthContext);
+
+export default AuthContext;

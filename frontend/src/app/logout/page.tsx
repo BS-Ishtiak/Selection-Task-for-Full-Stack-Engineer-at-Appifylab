@@ -1,41 +1,40 @@
 "use client";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import api from "../../lib/api"; // normal import, no dynamic import
 
 export default function LogoutPage() {
   const router = useRouter();
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
   useEffect(() => {
     let mounted = true;
+
     async function doLogout() {
       try {
-        // Send refresh token to backend to invalidate server-side store (if you store it there)
-        const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
-        if (refreshToken) {
-          await import('../../lib/api').then(({ default: api }) => api.post('/api/auth/logout', { refreshToken }));
-        } else {
-          // Still call logout to clear any cookies (if any)
-          await import('../../lib/api').then(({ default: api }) => api.post('/api/auth/logout'));
-        }
+        const refreshToken = localStorage.getItem("refreshToken");
+
+        // Call backend logout, send refresh token so backend removes it
+        await api.post("/api/auth/logout", { refreshToken });
       } catch (e) {
-        // ignore network errors during logout
+        // Ignore logout errors
       }
 
-      // Clear client-side storage and non-HttpOnly cookies
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        document.cookie = `accessToken=; Path=/; Max-Age=0`;
-        document.cookie = `refreshToken=; Path=/; Max-Age=0`;
-      }
+      // Clear client storage
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      localStorage.removeItem("user");
 
-      if (mounted) router.push('/login');
+      // Clear non-httpOnly cookies (if any exist)
+      document.cookie = `accessToken=; Path=/; Max-Age=0`;
+      document.cookie = `refreshToken=; Path=/; Max-Age=0`;
+
+      if (mounted) router.push("/login");
     }
 
     doLogout();
+
     return () => { mounted = false; };
-  }, [router, API_BASE]);
+  }, [router]);
 
   return null;
 }

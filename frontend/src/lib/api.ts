@@ -7,36 +7,21 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// Attach Authorization header from localStorage if available
-api.interceptors.request.use((config) => {
-  try {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null;
-    if (token && config.headers) {
-      config.headers['Authorization'] = `Bearer ${token}`;
-    }
-  } catch (e) {
-    // ignore
+// Manage Authorization header explicitly via helpers exported below.
+export function setAuthToken(token?: string | null) {
+  if (token) {
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete api.defaults.headers.common['Authorization'];
   }
-  return config;
-});
+}
 
-// Redirect to /login on 401 Unauthorized responses
-api.interceptors.response.use(
-  (resp) => resp,
-  (err) => {
-    const status = err?.response?.status;
-    if (status === 401) {
-      if (typeof window !== 'undefined') {
-        // remove tokens and redirect
-        try {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
-        } catch (e) {}
-        window.location.href = '/login';
-      }
-    }
-    return Promise.reject(err);
-  }
-);
+export function clearAuthToken() {
+  delete api.defaults.headers.common['Authorization'];
+}
+
+// Response interceptor: on 401 clear tokens and redirect to login
+// NOTE: Response handling (401 -> refresh) is managed by the AuthProvider
+// so we keep this file limited to the axios instance and header helpers.
 
 export default api;

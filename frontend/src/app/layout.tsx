@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { AuthProvider } from "../context/AuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,12 +33,10 @@ export default function RootLayout({
         <link rel="stylesheet" href="/assets/css/main.css" />
         <link rel="stylesheet" href="/assets/css/responsive.css" />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         {/* Load Bootstrap JS bundle from public assets so components (dropdowns, modals, etc.) work */}
         <Script src="/assets/js/bootstrap.bundle.min.js" strategy="beforeInteractive" />
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

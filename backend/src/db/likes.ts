@@ -49,3 +49,15 @@ export async function countLikesForReply(pool: Pool, replyId: number) {
   const res = await pool.query('SELECT COUNT(*) AS cnt FROM likes WHERE reply_id=$1', [replyId]);
   return Number(res.rows[0].cnt || 0);
 }
+
+export async function getLikersForPost(pool: Pool, postId: number) {
+  const res = await pool.query(
+    `SELECT u.id, u.first_name, u.last_name, l.created_at
+     FROM likes l
+     JOIN users u ON u.id = l.user_id
+     WHERE l.post_id = $1
+     ORDER BY l.created_at DESC`,
+    [postId]
+  );
+  return res.rows || [];
+}

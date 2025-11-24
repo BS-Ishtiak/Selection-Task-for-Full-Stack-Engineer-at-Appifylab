@@ -19,6 +19,35 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
   const [loadingComments, setLoadingComments] = useState(false);
   const [postLikeCount, setPostLikeCount] = useState<number | null>(null);
   const [postLiked, setPostLiked] = useState<boolean | null>(null);
+  const [showLikers, setShowLikers] = useState(false);
+  const [likers, setLikers] = useState<any[]>([]);
+  const [loadingLikers, setLoadingLikers] = useState(false);
+  const [likersError, setLikersError] = useState<string | null>(null);
+
+  const fetchLikers = async (forceShow = false) => {
+    if (!postId) return;
+    setLoadingLikers(true);
+    setLikersError(null);
+    try {
+      const resp = await api.get(`/api/posts/${postId}/likes`);
+      if (resp?.status === 200 && resp?.data?.success) {
+        setLikers(resp.data.data || []);
+        if (forceShow) setShowLikers(true);
+        return true;
+      } else if (resp?.status === 401) {
+        setLikersError('Please login to view who liked this post');
+      } else {
+        setLikersError('Could not load likers');
+        console.error('Load likers unexpected response', resp);
+      }
+    } catch (e: any) {
+      console.error('Load likers error', e);
+      setLikersError(e?.response?.data?.message || 'Server error while loading likers');
+    } finally {
+      setLoadingLikers(false);
+    }
+    return false;
+  };
 
   useEffect(() => {
     if (!postId) return;
@@ -30,7 +59,14 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
           api.get(`/api/posts/${postId}`)
         ]);
         if (commentsResp?.data?.success) {
-          setComments(commentsResp.data.data || []);
+          // Normalize numeric fields coming from DB (PG returns counts as strings)
+          const normalized = (commentsResp.data.data || []).map((c: any) => ({
+            ...c,
+            reply_count: Number(c.reply_count || 0),
+            like_count: Number(c.like_count || 0),
+            replies: c.replies || [],
+          }));
+          setComments(normalized);
         }
         if (postResp?.data?.success && postResp.data.data) {
           setPostLikeCount(postResp.data.data.like_count ?? null);
@@ -78,12 +114,45 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
         </div>
       </div>
       <div className="_feed_inner_timeline_total_reacts _padd_r24 _padd_l24 _mar_b26">
-        <div className="_feed_inner_timeline_total_reacts_image">
+        <div className="_feed_inner_timeline_total_reacts_image" style={{ position: 'relative' }}>
           <img src="/assets/images/react_img1.png" alt="Image" className="_react_img1" />
-          <p className="_feed_inner_timeline_total_reacts_para">{postLikeCount ?? '9+'}</p>
+          <p className="_feed_inner_timeline_total_reacts_para" style={{ cursor: 'pointer' }} onClick={async () => {
+            if (!postId) return;
+            // If already visible, just hide
+            if (showLikers) {
+              setShowLikers(false);
+              return;
+            }
+            // If already loaded, just show
+            if (likers.length) {
+              setShowLikers(true);
+              return;
+            }
+            // Fetch likers and show if fetch succeeds
+            await fetchLikers(true);
+          }}>{postLikeCount ?? '9+'}</p>
+
+          {showLikers && (
+            <div style={{ position: 'absolute', top: 28, left: 0, minWidth: 200, background: '#fff', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: 8 }}>
+              {loadingLikers ? (
+                <div style={{ padding: 8, color: '#666' }}>Loading...</div>
+              ) : likers.length ? (
+                <div>
+                  {likers.map((u:any) => (
+                      <div key={u.id || `${u.created_at}-${Math.random()}`} style={{ padding: '6px 8px', borderBottom: '1px solid #fafafa', fontSize: 13 }}>
+                        <div style={{ fontWeight: 600 }}>{((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'Unknown'}</div>
+                        <div style={{ color: '#777', fontSize: 12 }}>{u.created_at ? new Date(u.created_at).toLocaleString() : ''}</div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div style={{ padding: 8, color: '#666' }}>No likes yet</div>
+              )}
+            </div>
+          )}
         </div>
         <div className="_feed_inner_timeline_total_reacts_txt">
-          <p className="_feed_inner_timeline_total_reacts_para1"><span>{comments.length}</span> Comment</p>
+          <p className="_feed_inner_timeline_total_reacts_para1" onClick={() => setShowCommentBox(true)} style={{ cursor: 'pointer' }}><span>{comments.length}</span> Comment</p>
           <p className="_feed_inner_timeline_total_reacts_para2"><span>122</span> Share</p>
         </div>
       </div>
@@ -96,6 +165,8 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
             if (payload?.success && payload.data) {
               setPostLiked(payload.data.liked);
               setPostLikeCount(payload.data.like_count);
+                // refresh likers list so popup shows latest user who liked
+                try { await fetchLikers(); } catch (err) { /* ignore */ }
             }
           } catch (e) {}
         }}>Haha</button>
@@ -136,10 +207,10 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
             </form>
           </div>
           <div className="_timline_comment_main">
-            {comments.map(c => (
+                  {comments.map(c => (
               <CommentItem key={c.id} comment={c} onReplyCreated={(reply:any) => {
-                // append reply to comment's replies list if present
-                setComments((prev) => prev.map(cm => cm.id === c.id ? { ...cm, replies: [...(cm.replies || []), reply], reply_count: (cm.reply_count || 0) + 1 } : cm));
+                // append reply to comment's replies list if present and increment reply_count
+                setComments((prev) => prev.map(cm => cm.id === c.id ? { ...cm, replies: [...(cm.replies || []), reply], reply_count: Number(cm.reply_count || 0) + 1 } : cm));
               }} />
             ))}
           </div>
@@ -153,13 +224,45 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [replies, setReplies] = useState<any[]>(comment.replies || []);
+  const [loadingReplies, setLoadingReplies] = useState(false);
+  const [submittingReply, setSubmittingReply] = useState(false);
+  const [showReplies, setShowReplies] = useState<boolean>(false);
+  const [liked, setLiked] = useState<boolean>(!!comment.liked_by_viewer);
+  const [likeCount, setLikeCount] = useState<number>(Number(comment.like_count || 0));
 
   useEffect(() => {
     setReplies(comment.replies || []);
+    // default collapsed view (like Facebook) — user can click to view replies
+    setLikeCount(Number(comment.like_count || 0));
+    setLiked(!!comment.liked_by_viewer);
   }, [comment.replies]);
+
+  // Load replies if not provided
+  useEffect(() => {
+    let mounted = true;
+    if ((replies && replies.length) || !comment.id) return;
+    (async () => {
+      setLoadingReplies(true);
+      try {
+        const resp = await api.get(`/api/comments/${comment.id}/replies`);
+        const payload = resp.data;
+        if (payload?.success) {
+          if (!mounted) return;
+          setReplies(payload.data || []);
+          setShowReplies((payload.data || []).length > 0);
+        }
+      } catch (e) {
+        console.error('Load replies error', e);
+      } finally {
+        if (mounted) setLoadingReplies(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [comment.id]);
 
   const submitReply = async () => {
     if (!replyText.trim()) return;
+    setSubmittingReply(true);
     try {
       const resp = await api.post(`/api/comments/${comment.id}/replies`, { text: replyText.trim() });
       const payload = resp.data;
@@ -168,10 +271,13 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
         setReplies((r) => [...r, newReply]);
         setReplyText('');
         setShowReplyBox(false);
+        setShowReplies(true);
         if (onReplyCreated) onReplyCreated(newReply);
       }
     } catch (e) {
       console.error('Submit reply error', e);
+    } finally {
+      setSubmittingReply(false);
     }
   };
 
@@ -180,8 +286,8 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
       const resp = await api.post(`/api/comments/${comment.id}/like`);
       const payload = resp.data;
       if (payload?.success && payload.data) {
-        // update local like_count if present
-        comment.like_count = payload.data.like_count;
+        setLikeCount(Number(payload.data.like_count || 0));
+        setLiked(!!payload.data.liked);
       }
     } catch (e) {
       console.error('Comment like error', e);
@@ -199,31 +305,69 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
             <div className="_comment_name"><a href="/profile"><h4 className="_comment_name_title">{(comment.first_name || '') + ' ' + (comment.last_name || '') || comment.author}</h4></a></div>
           </div>
           <div className="_comment_status"><p className="_comment_status_text"><span>{comment.text}</span></p></div>
-          <div className="_total_reactions">
+
+          {/* Inline action row: small 'Reply', 'View X replies', and inline 'Like' link like Facebook */}
+          <div style={{ marginTop: 6, display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+              <button type="button" onClick={() => setShowReplyBox(s => !s)} style={{ background: 'transparent', border: 'none', color: '#1877f2', padding: 0, cursor: 'pointer' }}>
+                Reply
+              </button>
+              {replies.length > 0 && (
+                <button type="button" onClick={() => setShowReplies(s => !s)} style={{ background: 'transparent', border: 'none', color: '#1877f2', padding: 0, cursor: 'pointer' }}>
+                  {showReplies ? `Hide ${replies.length} repl${replies.length > 1 ? 'ies' : 'y'}` : `View ${replies.length} repl${replies.length > 1 ? 'ies' : 'y'}`}
+                </button>
+              )}
+            </div>
+            <button type="button" onClick={toggleCommentLike} style={{ background: 'transparent', border: 'none', color: liked ? '#1877f2' : '#666', padding: 0, cursor: 'pointer', marginLeft: 'auto' }} aria-pressed={liked}>
+              {liked ? 'Liked' : 'Like'}
+            </button>
+          </div>
+
+            <div className="_total_reactions" style={{ marginBottom: 8, marginTop: 6 }}>
             <div className="_total_react">
               <button onClick={toggleCommentLike} className="_reaction_like" />
               <button className="_reaction_heart" />
             </div>
-            <span className="_total">{comment.like_count || 0}</span>
-            <button style={{ marginLeft: 12 }} onClick={() => setShowReplyBox(s => !s)}>Reply</button>
+            {likeCount ? <span className="_total">{likeCount}</span> : null}
           </div>
           {showReplyBox && (
-            <div style={{ marginTop: 8 }}>
-              <textarea value={replyText} onChange={(e)=>setReplyText(e.target.value)} className="form-control" />
-              <div style={{ marginTop: 6 }}>
-                <button className="_feed_inner_comment_box_icon_btn" onClick={(e)=>{ e.preventDefault(); submitReply(); }}>Send</button>
+            <div style={{ marginTop: 12, clear: 'both' }}>
+              <textarea value={replyText} onChange={(e)=>setReplyText(e.target.value)} className="form-control" placeholder="Write a reply..." />
+              <div style={{ marginTop: 6, display: 'flex', gap: 8 }}>
+                <button className="_feed_inner_comment_box_icon_btn" onClick={(e)=>{ e.preventDefault(); submitReply(); }} disabled={submittingReply}>{submittingReply ? 'Sending...' : 'Send'}</button>
+                <button className="_feed_inner_comment_box_icon_btn" onClick={(e)=>{ e.preventDefault(); setShowReplyBox(false); setReplyText(''); }}>{'Cancel'}</button>
               </div>
             </div>
           )}
 
-          {replies.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              {replies.map((r:any) => (
-                <div key={r.id} style={{ paddingLeft: 12, marginTop: 6 }}>
-                  <strong>{(r.first_name || '') + ' ' + (r.last_name || '')}</strong>: <span>{r.text}</span>
+          {loadingReplies ? (
+            <div style={{ marginTop: 8, color: '#666' }}>Loading replies...</div>
+          ) : (
+            <>
+              {replies.length > 0 && (
+                <div style={{ marginTop: 12, clear: 'both' }}>
+                  {!showReplies ? (
+                    // collapsed: render preview only (controls are in the inline action row)
+                    replies[replies.length - 1] ? (
+                      <div style={{ marginTop: 6, borderLeft: '2px solid #eee', paddingLeft: 12, opacity: 0.95 }}>
+                        <div style={{ fontSize: 13 }}><strong>{(replies[replies.length - 1].first_name || '') + ' ' + (replies[replies.length - 1].last_name || '')}</strong> <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>{replies[replies.length - 1].created_at ? new Date(replies[replies.length - 1].created_at).toLocaleString() : ''}</span></div>
+                        <div style={{ marginTop: 4 }}>{replies[replies.length - 1].text}</div>
+                      </div>
+                    ) : null
+                  ) : (
+                    // expanded: render full replies list (no internal toggle button)
+                    <>
+                      {replies.map((r:any) => (
+                        <div key={r.id} style={{ marginTop: 6, borderLeft: '2px solid #eee', paddingLeft: 12 }}>
+                          <div style={{ fontSize: 13 }}><strong>{(r.first_name || '') + ' ' + (r.last_name || '')}</strong> <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>{r.created_at ? new Date(r.created_at).toLocaleString() : ''}</span></div>
+                          <div style={{ marginTop: 4 }}>{r.text}</div>
+                        </div>
+                      ))}
+                    </>
+                  )}
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
 
         </div>

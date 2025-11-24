@@ -49,5 +49,18 @@ export default function createLikesRouter(deps: { pool: Pool; authenticateToken?
     }
   });
 
+  // List likers for a post (username + when they liked)
+  router.get('/posts/:id/likes', authenticateToken, async (req: any, res) => {
+    try {
+      const postId = Number(req.params.id);
+      const likesDb = await import('../db/likes');
+      const likers = await likesDb.getLikersForPost(pool, postId);
+      return res.json({ success: true, data: likers, message: null, errors: null });
+    } catch (err: any) {
+      console.error('Get post likers error:', err?.message || err);
+      return res.status(500).json({ success: false, data: null, message: null, errors: ['Server error'] });
+    }
+  });
+
   return router;
 }

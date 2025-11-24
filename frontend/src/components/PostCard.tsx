@@ -19,6 +19,7 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
   const [loadingComments, setLoadingComments] = useState(false);
   const [postLikeCount, setPostLikeCount] = useState<number | null>(null);
   const [postLiked, setPostLiked] = useState<boolean | null>(null);
+  const [postVisibility, setPostVisibility] = useState<string>('public');
   const [showLikers, setShowLikers] = useState(false);
   const [likers, setLikers] = useState<any[]>([]);
   const [loadingLikers, setLoadingLikers] = useState(false);
@@ -71,6 +72,7 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
         if (postResp?.data?.success && postResp.data.data) {
           setPostLikeCount(postResp.data.data.like_count ?? null);
           setPostLiked(!!postResp.data.data.liked_by_viewer);
+          setPostVisibility(postResp.data.data.visibility || 'public');
         }
       } catch (e) {
         console.error('Load comments/post error', e);
@@ -90,7 +92,7 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
             </div>
             <div className="_feed_inner_timeline_post_box_txt">
               <h4 className="_feed_inner_timeline_post_box_title">{author}</h4>
-              <p className="_feed_inner_timeline_post_box_para">{time} . <a href="#0">Public</a></p>
+              <p className="_feed_inner_timeline_post_box_para">{time} . <a href="#0">{postVisibility === 'private' ? 'Private' : 'Public'}</a></p>
             </div>
           </div>
           <div className="_feed_inner_timeline_post_box_dropdown">
@@ -153,7 +155,7 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
         </div>
         <div className="_feed_inner_timeline_total_reacts_txt">
           <p className="_feed_inner_timeline_total_reacts_para1" onClick={() => setShowCommentBox(true)} style={{ cursor: 'pointer' }}><span>{comments.length}</span> Comment</p>
-          <p className="_feed_inner_timeline_total_reacts_para2"><span>122</span> Share</p>
+          <p className="_feed_inner_timeline_total_reacts_para2"><span>0</span> Share</p>
         </div>
       </div>
       <div className="_feed_inner_timeline_reaction">
@@ -221,6 +223,7 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
 }
 
 function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated?: (r:any)=>void }) {
+  const { isAuthReady } = useAuth();
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [replies, setReplies] = useState<any[]>(comment.replies || []);
@@ -229,6 +232,13 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
   const [showReplies, setShowReplies] = useState<boolean>(false);
   const [liked, setLiked] = useState<boolean>(!!comment.liked_by_viewer);
   const [likeCount, setLikeCount] = useState<number>(Number(comment.like_count || 0));
+  const [showCommentLikers, setShowCommentLikers] = useState(false);
+  const [commentLikers, setCommentLikers] = useState<any[]>([]);
+  const [loadingCommentLikers, setLoadingCommentLikers] = useState(false);
+
+  const [showReplyLikersFor, setShowReplyLikersFor] = useState<number | null>(null);
+  const [replyLikers, setReplyLikers] = useState<any[]>([]);
+  const [loadingReplyLikers, setLoadingReplyLikers] = useState(false);
 
   useEffect(() => {
     setReplies(comment.replies || []);
@@ -240,7 +250,7 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
   // Load replies if not provided
   useEffect(() => {
     let mounted = true;
-    if ((replies && replies.length) || !comment.id) return;
+    if ((replies && replies.length) || !comment.id || !isAuthReady) return;
     (async () => {
       setLoadingReplies(true);
       try {
@@ -258,7 +268,7 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
       }
     })();
     return () => { mounted = false; };
-  }, [comment.id]);
+  }, [comment.id, isAuthReady]);
 
   const submitReply = async () => {
     if (!replyText.trim()) return;
@@ -281,6 +291,18 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
     }
   };
 
+  const toggleReplyLike = async (replyId: number) => {
+    try {
+      const resp = await api.post(`/api/replies/${replyId}/like`);
+      const payload = resp.data;
+      if (payload?.success && payload.data) {
+        setReplies((prev) => prev.map((r) => r.id === replyId ? { ...r, like_count: Number(payload.data.like_count || 0), liked_by_viewer: !!payload.data.liked } : r));
+      }
+    } catch (e) {
+      console.error('Reply like error', e);
+    }
+  };
+
   const toggleCommentLike = async () => {
     try {
       const resp = await api.post(`/api/comments/${comment.id}/like`);
@@ -294,16 +316,64 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
     }
   };
 
+  const fetchCommentLikers = async (forceShow = false) => {
+    if (!comment.id || !isAuthReady) return;
+    setLoadingCommentLikers(true);
+    try {
+      const resp = await api.get(`/api/comments/${comment.id}/likes`);
+      if (resp?.data?.success) {
+        setCommentLikers(resp.data.data || []);
+        if (forceShow) setShowCommentLikers(true);
+      }
+    } catch (e: any) {
+      console.error('Load comment likers error', e);
+    } finally {
+      setLoadingCommentLikers(false);
+    }
+  };
+
+  const fetchReplyLikers = async (replyId: number, forceShow = false) => {
+    if (!replyId || !isAuthReady) return;
+    setLoadingReplyLikers(true);
+    try {
+      const resp = await api.get(`/api/replies/${replyId}/likes`);
+      if (resp?.data?.success) {
+        setReplyLikers(resp.data.data || []);
+        if (forceShow) setShowReplyLikersFor(replyId);
+      }
+    } catch (e: any) {
+      console.error('Load reply likers error', e);
+    } finally {
+      setLoadingReplyLikers(false);
+    }
+  };
+
   return (
     <div className="_comment_main">
       <div className="_comment_image">
         <a href="/profile" className="_comment_image_link"><img src="/assets/images/txt_img.png" alt="" className="_comment_img1" /></a>
       </div>
       <div className="_comment_area">
-        <div className="_comment_details">
+        <div className="_comment_details" style={{ position: 'relative' }}>
           <div className="_comment_details_top">
             <div className="_comment_name"><a href="/profile"><h4 className="_comment_name_title">{(comment.first_name || '') + ' ' + (comment.last_name || '') || comment.author}</h4></a></div>
           </div>
+          {showCommentLikers && (
+            <div style={{ position: 'absolute', top: '100%', right: 0, minWidth: 220, background: '#fff', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 60, padding: 8 }}>
+              {loadingCommentLikers ? (
+                <div style={{ padding: 8, color: '#666' }}>Loading...</div>
+              ) : commentLikers.length ? (
+                commentLikers.map((u:any) => (
+                  <div key={u.id || u.created_at} style={{ padding: '6px 8px', borderBottom: '1px solid #fafafa', fontSize: 13 }}>
+                    <div style={{ fontWeight: 600 }}>{((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'Unknown'}</div>
+                    <div style={{ color: '#777', fontSize: 12 }}>{u.created_at ? new Date(u.created_at).toLocaleString() : ''}</div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ padding: 8, color: '#666' }}>No likes yet</div>
+              )}
+            </div>
+          )}
           <div className="_comment_status"><p className="_comment_status_text"><span>{comment.text}</span></p></div>
 
           {/* Inline action row: small 'Reply', 'View X replies', and inline 'Like' link like Facebook */}
@@ -318,17 +388,20 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
                 </button>
               )}
             </div>
-            <button type="button" onClick={toggleCommentLike} style={{ background: 'transparent', border: 'none', color: liked ? '#1877f2' : '#666', padding: 0, cursor: 'pointer', marginLeft: 'auto' }} aria-pressed={liked}>
-              {liked ? 'Liked' : 'Like'}
-            </button>
-          </div>
 
-            <div className="_total_reactions" style={{ marginBottom: 8, marginTop: 6 }}>
-            <div className="_total_react">
-              <button onClick={toggleCommentLike} className="_reaction_like" />
-              <button className="_reaction_heart" />
+            {/* Like count to the left of the Like button */}
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              {Number(likeCount) > 0 ? (
+                <span onClick={async () => {
+                    if (showCommentLikers) { setShowCommentLikers(false); return; }
+                    if (commentLikers.length) { setShowCommentLikers(true); return; }
+                    await fetchCommentLikers(true);
+                  }} style={{ fontSize: 13, color: '#666', cursor: 'pointer' }}>{likeCount}</span>
+              ) : null}
+              <button type="button" onClick={toggleCommentLike} style={{ background: 'transparent', border: 'none', color: liked ? '#1877f2' : '#666', padding: 0, cursor: 'pointer' }} aria-pressed={liked}>
+                {liked ? 'Liked' : 'Like'}
+              </button>
             </div>
-            {likeCount ? <span className="_total">{likeCount}</span> : null}
           </div>
           {showReplyBox && (
             <div style={{ marginTop: 12, clear: 'both' }}>
@@ -349,18 +422,79 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
                   {!showReplies ? (
                     // collapsed: render preview only (controls are in the inline action row)
                     replies[replies.length - 1] ? (
-                      <div style={{ marginTop: 6, borderLeft: '2px solid #eee', paddingLeft: 12, opacity: 0.95 }}>
-                        <div style={{ fontSize: 13 }}><strong>{(replies[replies.length - 1].first_name || '') + ' ' + (replies[replies.length - 1].last_name || '')}</strong> <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>{replies[replies.length - 1].created_at ? new Date(replies[replies.length - 1].created_at).toLocaleString() : ''}</span></div>
-                        <div style={{ marginTop: 4 }}>{replies[replies.length - 1].text}</div>
-                      </div>
-                    ) : null
-                  ) : (
+                        <div style={{ marginTop: 6, borderLeft: '2px solid #eee', paddingLeft: 12, opacity: 0.95, position: 'relative' }}>
+                          <div style={{ fontSize: 13 }}><strong>{(replies[replies.length - 1].first_name || '') + ' ' + (replies[replies.length - 1].last_name || '')}</strong> <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>{replies[replies.length - 1].created_at ? new Date(replies[replies.length - 1].created_at).toLocaleString() : ''}</span></div>
+                          <div style={{ marginTop: 4 }}>{replies[replies.length - 1].text}</div>
+                          <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {Number(replies[replies.length - 1].like_count) > 0 ? (
+                                <span onClick={async () => {
+                                    const rid = replies[replies.length - 1].id;
+                                    if (showReplyLikersFor === rid) { setShowReplyLikersFor(null); return; }
+                                    if (replyLikers.length && showReplyLikersFor === rid) { setShowReplyLikersFor(rid); return; }
+                                    await fetchReplyLikers(replies[replies.length - 1].id, true);
+                                  }} style={{ fontSize: 13, color: '#666', cursor: 'pointer' }}>{replies[replies.length - 1].like_count}</span>
+                              ) : null}
+                              <button type="button" onClick={() => toggleReplyLike(replies[replies.length - 1].id)} style={{ background: 'transparent', border: 'none', color: replies[replies.length - 1].liked_by_viewer ? '#1877f2' : '#666', padding: 0, cursor: 'pointer' }}>
+                                {replies[replies.length - 1].liked_by_viewer ? 'Liked' : 'Like'}
+                              </button>
+                              {showReplyLikersFor === replies[replies.length - 1].id && (
+                                <div style={{ position: 'absolute', top: '100%', right: 0, minWidth: 200, background: '#fff', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: 8 }}>
+                                  {loadingReplyLikers ? (
+                                    <div style={{ padding: 8, color: '#666' }}>Loading...</div>
+                                  ) : replyLikers.length ? (
+                                    replyLikers.map((u:any)=> (
+                                      <div key={u.id || u.created_at} style={{ padding: '6px 8px', borderBottom: '1px solid #fafafa', fontSize: 13 }}>
+                                        <div style={{ fontWeight: 600 }}>{((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'Unknown'}</div>
+                                        <div style={{ color: '#777', fontSize: 12 }}>{u.created_at ? new Date(u.created_at).toLocaleString() : ''}</div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div style={{ padding: 8, color: '#666' }}>No likes yet</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        ) : null
+                      ) : (
                     // expanded: render full replies list (no internal toggle button)
                     <>
                       {replies.map((r:any) => (
-                        <div key={r.id} style={{ marginTop: 6, borderLeft: '2px solid #eee', paddingLeft: 12 }}>
+                        <div key={r.id} style={{ marginTop: 6, borderLeft: '2px solid #eee', paddingLeft: 12, position: 'relative' }}>
                           <div style={{ fontSize: 13 }}><strong>{(r.first_name || '') + ' ' + (r.last_name || '')}</strong> <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>{r.created_at ? new Date(r.created_at).toLocaleString() : ''}</span></div>
                           <div style={{ marginTop: 4 }}>{r.text}</div>
+                          <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
+                            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                              {Number(r.like_count) > 0 ? (
+                                <span onClick={async () => {
+                                    if (showReplyLikersFor === r.id) { setShowReplyLikersFor(null); return; }
+                                    if (replyLikers.length && showReplyLikersFor === r.id) { setShowReplyLikersFor(r.id); return; }
+                                    await fetchReplyLikers(r.id, true);
+                                  }} style={{ fontSize: 13, color: '#666', cursor: 'pointer' }}>{r.like_count}</span>
+                              ) : null}
+                              <button type="button" onClick={() => toggleReplyLike(r.id)} style={{ background: 'transparent', border: 'none', color: r.liked_by_viewer ? '#1877f2' : '#666', padding: 0, cursor: 'pointer' }}>
+                                {r.liked_by_viewer ? 'Liked' : 'Like'}
+                              </button>
+                              {showReplyLikersFor === r.id && (
+                                <div style={{ position: 'absolute', top: '100%', right: 0, minWidth: 200, background: '#fff', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 50, padding: 8 }}>
+                                  {loadingReplyLikers ? (
+                                    <div style={{ padding: 8, color: '#666' }}>Loading...</div>
+                                  ) : replyLikers.length ? (
+                                    replyLikers.map((u:any)=> (
+                                      <div key={u.id || u.created_at} style={{ padding: '6px 8px', borderBottom: '1px solid #fafafa', fontSize: 13 }}>
+                                        <div style={{ fontWeight: 600 }}>{((u.first_name || '') + ' ' + (u.last_name || '')).trim() || 'Unknown'}</div>
+                                        <div style={{ color: '#777', fontSize: 12 }}>{u.created_at ? new Date(u.created_at).toLocaleString() : ''}</div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <div style={{ padding: 8, color: '#666' }}>No likes yet</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </>

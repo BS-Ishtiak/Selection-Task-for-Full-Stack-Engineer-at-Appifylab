@@ -62,5 +62,31 @@ export default function createLikesRouter(deps: { pool: Pool; authenticateToken?
     }
   });
 
+  // List likers for a comment
+  router.get('/comments/:id/likes', authenticateToken, async (req: any, res) => {
+    try {
+      const commentId = Number(req.params.id);
+      const likesDb = await import('../db/likes');
+      const likers = await likesDb.getLikersForComment(pool, commentId);
+      return res.json({ success: true, data: likers, message: null, errors: null });
+    } catch (err: any) {
+      console.error('Get comment likers error:', err?.message || err);
+      return res.status(500).json({ success: false, data: null, message: null, errors: ['Server error'] });
+    }
+  });
+
+  // List likers for a reply
+  router.get('/replies/:id/likes', authenticateToken, async (req: any, res) => {
+    try {
+      const replyId = Number(req.params.id);
+      const likesDb = await import('../db/likes');
+      const likers = await likesDb.getLikersForReply(pool, replyId);
+      return res.json({ success: true, data: likers, message: null, errors: null });
+    } catch (err: any) {
+      console.error('Get reply likers error:', err?.message || err);
+      return res.status(500).json({ success: false, data: null, message: null, errors: ['Server error'] });
+    }
+  });
+
   return router;
 }

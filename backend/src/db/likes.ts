@@ -61,3 +61,27 @@ export async function getLikersForPost(pool: Pool, postId: number) {
   );
   return res.rows || [];
 }
+
+export async function getLikersForComment(pool: Pool, commentId: number) {
+  const res = await pool.query(
+    `SELECT u.id, u.first_name, u.last_name, l.created_at
+     FROM likes l
+     JOIN users u ON u.id = l.user_id
+     WHERE l.comment_id = $1
+     ORDER BY l.created_at DESC`,
+    [commentId]
+  );
+  return res.rows || [];
+}
+
+export async function getLikersForReply(pool: Pool, replyId: number) {
+  const res = await pool.query(
+    `SELECT u.id, u.first_name, u.last_name, l.created_at
+     FROM likes l
+     JOIN users u ON u.id = l.user_id
+     WHERE l.reply_id = $1
+     ORDER BY l.created_at DESC`,
+    [replyId]
+  );
+  return res.rows || [];
+}

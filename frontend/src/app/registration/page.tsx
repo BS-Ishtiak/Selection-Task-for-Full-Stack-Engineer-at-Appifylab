@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import api from "../../lib/api";
 
 export default function RegistrationPage() {
@@ -12,6 +13,8 @@ export default function RegistrationPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errors, setErrors] = useState<string[] | null>(null);
+
+  const router = useRouter();
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -41,6 +44,8 @@ export default function RegistrationPage() {
         setEmail("");
         setPassword("");
         setRepeatPassword("");
+        // redirect to login after successful registration
+        try { router.push('/login'); } catch (e) { /* ignore navigation errors */ }
       } else {
         setErrors(data?.errors || [data?.message || "Registration failed"]);
       }

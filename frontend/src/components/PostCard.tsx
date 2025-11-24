@@ -11,7 +11,7 @@ type PostProps = {
 };
 
 export default function PostCard({ postId, author = "Karim Saif", time = "5 minute ago", title = "-Healthy Tracking App", image = "/assets/images/timeline_img.png" }: PostProps & { postId?: number }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, isAuthReady } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [comments, setComments] = useState<Array<any>>([]);
   const [commentText, setCommentText] = useState('');
@@ -50,8 +50,41 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
     return false;
   };
 
+  const fetchPost = async () => {
+    if (!postId) return;
+    try {
+      const resp = await api.get(`/api/posts/${postId}`);
+      if (resp?.data?.success && resp.data.data) {
+        setPostLikeCount(resp.data.data.like_count ?? null);
+        setPostLiked(!!resp.data.data.liked_by_viewer);
+        setPostVisibility(resp.data.data.visibility || 'public');
+        return resp.data.data;
+      }
+    } catch (e) {
+      console.error('fetchPost error', e);
+    }
+    return null;
+  };
+
+  // localStorage helpers to persist liked user ids per post on the client
+  const lsKey = (pId: number) => `post_${pId}_liked_users`;
+  const getLocalLikedUsers = (pId: number) => {
+    try {
+      const raw = localStorage.getItem(lsKey(pId));
+      if (!raw) return [] as number[];
+      return JSON.parse(raw) as number[];
+    } catch (e) {
+      return [] as number[];
+    }
+  };
+  const saveLocalLikedUsers = (pId: number, ids: number[]) => {
+    try { localStorage.setItem(lsKey(pId), JSON.stringify(ids || [])); } catch (e) {}
+  };
+
   useEffect(() => {
     if (!postId) return;
+    // Wait until auth initialization completes so `liked_by_viewer` is accurate
+    if (!isAuthReady) return;
     (async () => {
       setLoadingComments(true);
       try {
@@ -71,8 +104,31 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
         }
         if (postResp?.data?.success && postResp.data.data) {
           setPostLikeCount(postResp.data.data.like_count ?? null);
-          setPostLiked(!!postResp.data.data.liked_by_viewer);
+          // server authoritative liked_by_viewer
+          const serverLiked = !!postResp.data.data.liked_by_viewer;
+          setPostLiked(serverLiked);
           setPostVisibility(postResp.data.data.visibility || 'public');
+
+          // If server didn't say viewer liked but localStorage contains current user id, keep client-side liked state.
+          try {
+            if (!serverLiked && user && user.id) {
+              const localIds = getLocalLikedUsers(postId);
+              if (Array.isArray(localIds) && localIds.includes(Number(user.id))) {
+                setPostLiked(true);
+              }
+            }
+            // If server says liked, ensure localStorage contains the user id so it persists client-side too
+            if (serverLiked && user && user.id) {
+              const localIds = getLocalLikedUsers(postId);
+              const uid = Number(user.id);
+              if (!localIds.includes(uid)) {
+                localIds.push(uid);
+                saveLocalLikedUsers(postId, localIds);
+              }
+            }
+          } catch (e) {
+            // ignore localStorage errors
+          }
         }
       } catch (e) {
         console.error('Load comments/post error', e);
@@ -80,7 +136,7 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
         setLoadingComments(false);
       }
     })();
-  }, [postId]);
+  }, [postId, isAuthReady, user]);
 
   return (
     <article className="_feed_inner_timeline_post_area _b_radious6 _padd_b24 _padd_t24 _mar_b16">
@@ -160,17 +216,70 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
       </div>
       <div className="_feed_inner_timeline_reaction">
         <button className={`_feed_inner_timeline_reaction_emoji _feed_reaction ${postLiked ? '_feed_reaction_active' : ''}`} onClick={async () => {
-          if (!postId || !isAuthenticated) return;
+          if (!postId || !isAuthenticated || !isAuthReady) return;
+          // optimistic update: flip local state immediately
+          const prevLiked = !!postLiked;
+          const prevCount = Number(postLikeCount || 0);
+          const newLiked = !prevLiked;
+          const newCount = newLiked ? prevCount + 1 : Math.max(0, prevCount - 1);
+          setPostLiked(newLiked);
+          setPostLikeCount(newCount);
+
+          // update localStorage optimistically
+          let didUpdateLocal = false;
+          try {
+            if (user && user.id) {
+              const uid = Number(user.id);
+              const localIds = getLocalLikedUsers(postId);
+              if (newLiked) {
+                if (!localIds.includes(uid)) {
+                  localIds.push(uid);
+                  saveLocalLikedUsers(postId, localIds);
+                }
+              } else {
+                const remaining = localIds.filter(i => i !== uid);
+                saveLocalLikedUsers(postId, remaining);
+              }
+              didUpdateLocal = true;
+            }
+          } catch (e) { /* ignore localStorage errors */ }
+
           try {
             const resp = await api.post(`/api/posts/${postId}/like`);
             const payload = resp.data;
             if (payload?.success && payload.data) {
-              setPostLiked(payload.data.liked);
-              setPostLikeCount(payload.data.like_count);
-                // refresh likers list so popup shows latest user who liked
-                try { await fetchLikers(); } catch (err) { /* ignore */ }
+              // reconcile with server authoritative state
+              const likedNow = !!payload.data.liked;
+              setPostLiked(likedNow);
+              setPostLikeCount(Number(payload.data.like_count || 0));
+              // ensure localStorage matches server
+              try {
+                if (user && user.id) {
+                  const uid = Number(user.id);
+                  const localIds = getLocalLikedUsers(postId);
+                  if (likedNow && !localIds.includes(uid)) { localIds.push(uid); saveLocalLikedUsers(postId, localIds); }
+                  if (!likedNow && localIds.includes(uid)) { saveLocalLikedUsers(postId, localIds.filter(i => i !== uid)); }
+                }
+              } catch (e) { /* ignore */ }
+              try { await fetchLikers(); } catch (err) { console.error('fetchLikers after like failed', err); }
+            } else {
+              // rollback optimistic if server says no
+              setPostLiked(prevLiked);
+              setPostLikeCount(prevCount);
+              if (didUpdateLocal && user && user.id) {
+                try { saveLocalLikedUsers(postId, getLocalLikedUsers(postId).filter(i => i !== Number(user.id))); } catch(e){}
+              }
+              console.error('Like API responded with non-success', resp);
             }
-          } catch (e) {}
+          } catch (err: any) {
+            // rollback on network/server error
+            setPostLiked(prevLiked);
+            setPostLikeCount(prevCount);
+            if (didUpdateLocal && user && user.id) {
+              try { saveLocalLikedUsers(postId, getLocalLikedUsers(postId).filter(i => i !== Number(user.id))); } catch(e){}
+            }
+            console.error('Post like error', err);
+          }
         }}>Haha</button>
         <button className="_feed_inner_timeline_reaction_comment _feed_reaction" onClick={() => setShowCommentBox((s) => !s)}>Comment</button>
         <button className="_feed_inner_timeline_reaction_share _feed_reaction">Share</button>
@@ -187,7 +296,11 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
                   const payload = resp.data;
                   if (payload?.success && payload.data) {
                     const newComment = payload.data;
-                    setComments((c) => [...c, { ...newComment, author: (newComment.first_name || '') + ' ' + (newComment.last_name || ''), text: newComment.text }] as any);
+                    // If the backend didn't include author names on create, fall back to the current user
+                    const firstName = newComment.first_name || newComment.firstName || (user?.first_name || user?.firstName || '');
+                    const lastName = newComment.last_name || newComment.lastName || (user?.last_name || user?.lastName || '');
+                    const authorName = ((firstName || '') + ' ' + (lastName || '')).trim() || (user?.email ? user.email.split('@')[0] : 'You');
+                    setComments((c) => [...c, { ...newComment, first_name: firstName, last_name: lastName, author: authorName, text: newComment.text }] as any);
                     setCommentText('');
                   }
                 } catch (err) {
@@ -223,7 +336,7 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
 }
 
 function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated?: (r:any)=>void }) {
-  const { isAuthReady } = useAuth();
+  const { isAuthReady, user } = useAuth();
   const [showReplyBox, setShowReplyBox] = useState(false);
   const [replyText, setReplyText] = useState('');
   const [replies, setReplies] = useState<any[]>(comment.replies || []);
@@ -278,7 +391,10 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
       const payload = resp.data;
       if (payload?.success && payload.data) {
         const newReply = payload.data;
-        setReplies((r) => [...r, newReply]);
+        const rfName = newReply.first_name || newReply.firstName || (user?.first_name || user?.firstName || '');
+        const rlName = newReply.last_name || newReply.lastName || (user?.last_name || user?.lastName || '');
+        const rAuthor = ((rfName || '') + ' ' + (rlName || '')).trim() || (user?.email ? user.email.split('@')[0] : 'You');
+        setReplies((r) => [...r, { ...newReply, first_name: rfName, last_name: rlName, author: rAuthor }]);
         setReplyText('');
         setShowReplyBox(false);
         setShowReplies(true);
@@ -356,7 +472,9 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
       <div className="_comment_area">
         <div className="_comment_details" style={{ position: 'relative' }}>
           <div className="_comment_details_top">
-            <div className="_comment_name"><a href="/profile"><h4 className="_comment_name_title">{(comment.first_name || '') + ' ' + (comment.last_name || '') || comment.author}</h4></a></div>
+            <div className="_comment_name"><a href="/profile">
+              <h4 className="_comment_name_title">{(((comment.first_name || '') + ' ' + (comment.last_name || '')).trim() || comment.author || 'Unknown')}</h4>
+            </a></div>
           </div>
           {showCommentLikers && (
             <div style={{ position: 'absolute', top: '100%', right: 0, minWidth: 220, background: '#fff', border: '1px solid #eee', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', zIndex: 60, padding: 8 }}>
@@ -423,7 +541,7 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
                     // collapsed: render preview only (controls are in the inline action row)
                     replies[replies.length - 1] ? (
                         <div style={{ marginTop: 6, borderLeft: '2px solid #eee', paddingLeft: 12, opacity: 0.95, position: 'relative' }}>
-                          <div style={{ fontSize: 13 }}><strong>{(replies[replies.length - 1].first_name || '') + ' ' + (replies[replies.length - 1].last_name || '')}</strong> <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>{replies[replies.length - 1].created_at ? new Date(replies[replies.length - 1].created_at).toLocaleString() : ''}</span></div>
+                          <div style={{ fontSize: 13 }}><strong>{(((replies[replies.length - 1].first_name || '') + ' ' + (replies[replies.length - 1].last_name || '')).trim() || replies[replies.length - 1].author || 'Unknown')}</strong> <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>{replies[replies.length - 1].created_at ? new Date(replies[replies.length - 1].created_at).toLocaleString() : ''}</span></div>
                           <div style={{ marginTop: 4 }}>{replies[replies.length - 1].text}</div>
                           <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
                             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -463,7 +581,7 @@ function CommentItem({ comment, onReplyCreated }: { comment: any; onReplyCreated
                     <>
                       {replies.map((r:any) => (
                         <div key={r.id} style={{ marginTop: 6, borderLeft: '2px solid #eee', paddingLeft: 12, position: 'relative' }}>
-                          <div style={{ fontSize: 13 }}><strong>{(r.first_name || '') + ' ' + (r.last_name || '')}</strong> <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>{r.created_at ? new Date(r.created_at).toLocaleString() : ''}</span></div>
+                          <div style={{ fontSize: 13 }}><strong>{(((r.first_name || '') + ' ' + (r.last_name || '')).trim() || r.author || 'Unknown')}</strong> <span style={{ color: '#888', fontSize: 12, marginLeft: 8 }}>{r.created_at ? new Date(r.created_at).toLocaleString() : ''}</span></div>
                           <div style={{ marginTop: 4 }}>{r.text}</div>
                           <div style={{ marginTop: 6, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13 }}>
                             <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>

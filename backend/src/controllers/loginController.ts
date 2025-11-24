@@ -11,10 +11,10 @@ export default function makeLoginController(deps: { pool: any; signAccessToken: 
       if (!email || !password) return res.status(400).json({ success: false, data: null, message: null, errors: ['email and password required'] });
 
       const user = await getUserByEmail(pool, email);
-      if (!user) return res.status(400).json({ success: false, data: null, message: null, errors: ['User not found!'] });
-
+      if (!user) return res.status(400).json({ success: false, data: null, message: null, errors: ['Invalid email and password!'] });
+ 
       const ok = await bcrypt.compare(password, user.password);
-      if (!ok) return res.status(400).json({ success: false, data: null, message: null, errors: ['Invalid password!'] });
+      if (!ok) return res.status(400).json({ success: false, data: null, message: null, errors: ['Invalid email and password!'] });
 
       const name = (user.first_name || user.name) ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : undefined;
       const accessToken = signAccessToken({ id: user.id, email: user.email, name, role: user.role || 'user' });

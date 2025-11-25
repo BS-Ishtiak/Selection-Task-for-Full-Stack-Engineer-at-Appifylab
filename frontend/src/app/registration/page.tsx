@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "../../lib/api";
 import { toast } from 'react-toastify';
+import { z } from "zod";
 
 export default function RegistrationPage() {
   const [firstName, setFirstName] = useState("");
@@ -19,18 +20,36 @@ export default function RegistrationPage() {
 
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
+  const registrationSchema = z
+    .object({
+      firstName: z.string().min(1, "First name is required"),
+      lastName: z.string().min(1, "Last name is required"),
+      email: z.string().email("Invalid email address"),
+      password: z
+        .string()
+        .min(8, "Password must be at least 8 characters")
+        .regex(/(?=.*[a-z])/, "Password must contain a lowercase letter")
+        .regex(/(?=.*[A-Z])/, "Password must contain an uppercase letter")
+        .regex(/(?=.*\d)/, "Password must contain a number")
+        .regex(/(?=.*[^A-Za-z0-9])/, "Password must contain a special character"),
+      repeatPassword: z.string().min(1, "Repeat password is required"),
+    })
+    .refine((data) => data.password === data.repeatPassword, {
+      message: "Passwords do not match",
+      path: ["repeatPassword"],
+    });
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage(null);
     setErrors(null);
 
-    if (!firstName || !lastName || !email || !password || !repeatPassword) {
-      setErrors(["All fields are required"]);
-      return;
-    }
-
-    if (password !== repeatPassword) {
-      setErrors(["Passwords do not match"]);
+    // zod validation
+    const toValidate = { firstName, lastName, email, password, repeatPassword };
+    const parsed = registrationSchema.safeParse(toValidate);
+    if (!parsed.success) {
+      const errs = parsed.error.issues.map((issue) => issue.message);
+      setErrors(errs);
       return;
     }
 

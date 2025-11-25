@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import api from "../lib/api";
+import { toast } from 'react-toastify';
 import { useAuth } from "../context/AuthContext";
 
 type PostProps = {
@@ -10,7 +11,7 @@ type PostProps = {
   image?: string;
 };
 
-export default function PostCard({ postId, author = "Karim Saif", time = "5 minute ago", title = "-Healthy Tracking App", image = "/assets/images/timeline_img.png" }: PostProps & { postId?: number }) {
+export default function PostCard({ postId, author = "Karim Saif", time = "5 minute ago", title = "-Healthy Tracking App", image = "/assets/images/timeline_img.png", onDeleted }: PostProps & { postId?: number; onDeleted?: (id:number)=>void }) {
   const { isAuthenticated, user, isAuthReady } = useAuth();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [comments, setComments] = useState<Array<any>>([]);
@@ -24,6 +25,7 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
   const [likers, setLikers] = useState<any[]>([]);
   const [loadingLikers, setLoadingLikers] = useState(false);
   const [likersError, setLikersError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchLikers = async (forceShow = false) => {
     if (!postId) return;
@@ -161,7 +163,43 @@ export default function PostCard({ postId, author = "Karim Saif", time = "5 minu
                 <li className="_feed_timeline_dropdown_item"><a href="#0" className="_feed_timeline_dropdown_link">Turn On Notification</a></li>
                 <li className="_feed_timeline_dropdown_item"><a href="#0" className="_feed_timeline_dropdown_link">Hide</a></li>
                 <li className="_feed_timeline_dropdown_item"><a href="#0" className="_feed_timeline_dropdown_link">Edit Post</a></li>
-                <li className="_feed_timeline_dropdown_item"><a href="#0" className="_feed_timeline_dropdown_link">Delete Post</a></li>
+                <li className="_feed_timeline_dropdown_item">
+                  <button disabled={!postId || deleting} onClick={async () => {
+                    if (!postId) return;
+                    if (!confirm('Delete this post? This cannot be undone.')) return;
+                    try {
+                      setDeleting(true);
+                      const resp = await api.delete(`/api/posts/${postId}`);
+                          if (resp?.data?.success) {
+                            // notify parent to remove from list
+                            toast.success('Post deleted successfully');
+                            if (onDeleted) onDeleted(postId);
+                          } else {
+                            toast.error('Failed to delete post');
+                          }
+                    } catch (e: any) {
+                      console.error('Delete post error', e);
+                      // debug: log response details to help diagnose why toast might not be shown
+                      console.debug('Delete error response:', e?.response?.status, e?.response?.data);
+
+                      const status = e?.response?.status || e?.status;
+                      // If backend returned structured errors, prefer that message
+                      const backendMsg = e?.response?.data?.errors && Array.isArray(e.response.data.errors) ? e.response.data.errors[0] : null;
+
+                      if (status === 403) {
+                        toast.error(backendMsg || 'You have no permission to delete other posts');
+                      } else if (status === 401) {
+                        toast.error(backendMsg || 'Please login to delete posts');
+                      } else if (backendMsg) {
+                        toast.error(backendMsg);
+                      } else {
+                        toast.error('Server error while deleting post');
+                      }
+                    } finally {
+                      setDeleting(false);
+                    }
+                  }} className="_feed_timeline_dropdown_link">Delete Post</button>
+                </li>
               </ul>
             </div>
           </div>

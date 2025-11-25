@@ -29,8 +29,14 @@ export default function FeedPage() {
         const payload = res.data;
         if (payload?.success && Array.isArray(payload.data)) {
           const mapped = payload.data.map((p: any) => {
-            const authorName = (user && (user.fullName || user.name || `${user.firstName || user.fname || ''} ${user.lastName || user.lname || ''}`.trim())) || 'You';
+            // Prefer author fields returned by the API (correct post author). Fall back to viewer name if missing.
             const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+            const first = (p.first_name || p.firstName || '').trim();
+            const last = (p.last_name || p.lastName || '').trim();
+            const authorFromPost = ((first || '') + ' ' + (last || '')).trim();
+            const viewerFallback = (user && (user.fullName || user.name || `${user.firstName || user.fname || ''} ${user.lastName || user.lname || ''}`.trim())) || 'You';
+            const authorName = authorFromPost || viewerFallback;
+
             const image = p?.image_url
               ? (p.image_url.startsWith('http')
                   ? p.image_url
@@ -80,7 +86,7 @@ export default function FeedPage() {
                   <StoryCarousel />
                   <PostComposer onCreated={handleNewPost} />
                   {posts.map((pt) => (
-                    <PostCard key={pt.id} postId={pt.id} author={pt.author} time={pt.time} title={pt.title} image={pt.image} />
+                    <PostCard key={pt.id} postId={pt.id} author={pt.author} time={pt.time} title={pt.title} image={pt.image} onDeleted={(id:number) => setPosts((s) => s.filter(p => p.id !== id))} />
                   ))}
                 </main>
               </div>

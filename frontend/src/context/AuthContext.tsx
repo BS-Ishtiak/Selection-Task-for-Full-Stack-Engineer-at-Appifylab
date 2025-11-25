@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api, { setAuthToken, clearAuthToken } from "../lib/api";
+import { ToastContainer } from 'react-toastify';
 
 type LoginArgs = {
   accessToken: string;
@@ -155,6 +156,7 @@ export const AuthProvider = ({ children }: any) => {
   return (
     <AuthContext.Provider value={{ user, isAuthenticated: !!user, isAuthReady, login, logout, refreshAccessToken }}>
       {children}
+      <ToastContainer position="top-right" />
     </AuthContext.Provider>
   );
 };

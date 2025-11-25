@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "../../lib/api";
+import { toast } from 'react-toastify';
 
 export default function RegistrationPage() {
   const [firstName, setFirstName] = useState("");
@@ -38,7 +39,9 @@ export default function RegistrationPage() {
       const res = await api.post(`/api/auth/signup`, { firstName, lastName, email, password });
       const data = res.data;
       if (data?.success) {
-        setMessage(data.message || "Registered successfully");
+        const msg = data.message || "Registered successfully";
+        setMessage(msg);
+        toast.success(msg);
         setFirstName("");
         setLastName("");
         setEmail("");
@@ -47,14 +50,19 @@ export default function RegistrationPage() {
         // redirect to login after successful registration
         try { router.push('/login'); } catch (e) { /* ignore navigation errors */ }
       } else {
-        setErrors(data?.errors || [data?.message || "Registration failed"]);
+        const errs = data?.errors || [data?.message || "Registration failed"];
+        setErrors(errs);
+        toast.error(data?.message || "Registration failed");
       }
     } catch (err: any) {
       if (err?.response?.data) {
         const d = err.response.data;
-        setErrors(d?.errors || [d?.message || "Registration failed"]);
+        const errs = d?.errors || [d?.message || "Registration failed"];
+        setErrors(errs);
+        toast.error(d?.message || "Registration failed");
       } else {
         setErrors([err?.message || "Network error"]);
+        toast.error(err?.message || "Network error");
       }
     } finally {
       setLoading(false);
@@ -201,7 +209,7 @@ export default function RegistrationPage() {
                 <div className="row">
                   <div className="col-xl-12 col-lg-12 col-md-12 col-sm-12">
                     <div className="_social_registration_bottom_txt">
-                      <p className="_social_registration_bottom_txt_para">Dont have an account? <a href="#0">Create New Account</a>
+                      <p className="_social_login_bottom_txt_para">Already have an account? <a href="/login">Login</a>
                       </p>
                     </div>
                   </div>

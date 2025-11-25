@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "../../lib/api";
 import { useAuth } from "../../context/AuthContext";
+import { toast } from 'react-toastify';
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -29,7 +30,9 @@ export default function Login() {
       const res = await api.post(`/api/auth/login`, { email, password });
       const payload = res.data;
       if (payload?.success) {
-        setMessage(payload.message || "Logged in");
+        const msg = payload.message || "Logged in";
+        setMessage(msg);
+        toast.success(msg);
         const token = payload.accessToken;
         const rToken = payload.refreshToken;
         const user = payload.data || null;
@@ -37,14 +40,19 @@ export default function Login() {
         try { login(token, user, rToken); } catch (e) {}
         router.push('/feed');
       } else {
-        setErrors(payload?.errors || [payload?.message || "Login failed"]);
+        const errs = payload?.errors || [payload?.message || "Login failed"];
+        setErrors(errs);
+        toast.error((payload?.message) || "Login failed");
       }
     } catch (err: any) {
       if (err?.response?.data) {
         const d = err.response.data;
-        setErrors(d?.errors || [d?.message || "Login failed"]);
+        const errs = d?.errors || [d?.message || "Login failed"];
+        setErrors(errs);
+        toast.error(d?.message || "Login failed");
       } else {
         setErrors([err?.message || "Network error"]);
+        toast.error(err?.message || "Network error");
       }
     } finally {
       setLoading(false);

@@ -21,7 +21,7 @@ export default function makeLoginController(deps: { pool: any; signAccessToken: 
       const refreshToken = signRefreshToken({ id: user.id, email: user.email, role: user.role || 'user' });
       refreshStore.add(refreshToken);
 
-      return res.json({ success: true, data: { id: user.id, firstName: user.first_name, lastName: user.last_name, email: user.email, role: user.role }, message: 'Access and refresh tokens generated', accessToken, refreshToken, errors: null });
+      return res.json({ success: true, data: { id: user.id, firstName: user.first_name, lastName: user.last_name, email: user.email, role: user.role }, message: 'Logged in successfully', accessToken, refreshToken, errors: null });
     } catch (err: any) {
       console.error('Login controller error:', err.message || err);
       return res.status(500).json({ success: false, data: null, message: null, errors: ['Server error'] });

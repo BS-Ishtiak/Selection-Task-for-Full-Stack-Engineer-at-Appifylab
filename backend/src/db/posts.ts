@@ -55,3 +55,9 @@ export async function getLikesPreview(pool: Pool, postId: number, limit = 3) {
   const countRes = await pool.query(`SELECT COUNT(*) AS cnt FROM likes WHERE post_id = $1`, [postId]);
   return { preview: result.rows, count: Number(countRes.rows[0].cnt) };
 }
+
+export async function deletePost(pool: Pool, postId: number) {
+  // Because schema uses ON DELETE CASCADE for comments and likes, a single DELETE is sufficient.
+  const res = await pool.query(`DELETE FROM posts WHERE id = $1 RETURNING id`, [postId]);
+  return res.rows[0];
+}

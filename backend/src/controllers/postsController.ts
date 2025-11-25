@@ -43,7 +43,7 @@ export default function createPostsRouter(deps: { pool: Pool; authenticateToken?
       }
 
       const post = await createPost(pool, user.id, text, imageUrl, visibility);
-      return res.json({ success: true, data: post, message: "Post created", errors: null });
+      return res.json({ success: true, data: post, errors: null });
     } catch (err: any) {
       console.error("Create post error:", err?.message || err);
       return res.status(500).json({ success: false, data: null, message: null, errors: ["Server error"] });
@@ -98,6 +98,43 @@ export default function createPostsRouter(deps: { pool: Pool; authenticateToken?
     } catch (err: any) {
       console.error("Toggle post like error:", err?.message || err);
       return res.status(500).json({ success: false, data: null, message: null, errors: ["Server error"] });
+    }
+  });
+
+  // Delete a post (only owner or admin)
+  router.delete("/:id", authenticateToken, async (req: any, res) => {
+    try {
+      const postId = Number(req.params.id);
+      if (!postId) return res.status(400).json({ success: false, data: null, message: null, errors: ["Invalid id"] });
+
+      // fetch post to verify ownership and get image (if any)
+      const postRow = await pool.query(`SELECT id, user_id, image_url FROM posts WHERE id = $1`, [postId]);
+      if (!postRow || postRow.rowCount === 0) return res.status(404).json({ success: false, data: null, message: null, errors: ["Not found"] });
+      const post = postRow.rows[0];
+      const viewerId = req.user.id;
+      // only owner can delete (admins not implemented currently)
+      if (Number(post.user_id) !== Number(viewerId)) return res.status(403).json({ success: false, data: null, message: null, errors: ["Forbidden"] });
+
+      // remove uploaded image file if present
+      try {
+        if (post.image_url) {
+          const rel = (post.image_url || '').replace(/^\/*/, '');
+          const filePath = path.join(process.cwd(), 'public', rel);
+          if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+          }
+        }
+      } catch (e: any) {
+        console.warn('Failed removing post image file', e?.message || e);
+      }
+
+      const { deletePost } = await import("../db/posts");
+      const deleted = await deletePost(pool, postId);
+      if (!deleted) return res.status(500).json({ success: false, data: null, message: null, errors: ["Could not delete"] });
+      return res.json({ success: true, data: { id: deleted.id }, message: null, errors: null });
+    } catch (err: any) {
+      console.error('Delete post error:', err?.message || err);
+      return res.status(500).json({ success: false, data: null, message: null, errors: ['Server error'] });
     }
   });
 

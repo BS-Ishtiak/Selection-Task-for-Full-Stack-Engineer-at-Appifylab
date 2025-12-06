@@ -2,7 +2,7 @@
 
 **Project Summary**
 
-This repository contains a full-stack demonstration app created as a selection task for a Full-Stack Engineer role at Appifylab. The application implements a simple social feed where users can register, log in, create posts (with optional image uploads), and interact through likes and comments. The codebase is split into a TypeScript Express.js backend and a TypeScript Next.js frontend.
+The application implements a simple social feed where users can register, log in, create posts (with optional image uploads), and interact through likes and comments. The codebase is split into a TypeScript Express.js backend and a TypeScript Next.js frontend.
 
 **Tech Stack**
 

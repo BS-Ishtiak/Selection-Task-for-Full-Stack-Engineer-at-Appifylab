@@ -1,4 +1,4 @@
-# Selection Task — Full-Stack Engineer (Appifylab)
+# Social Media Type App
 
 **Project Summary**
 
